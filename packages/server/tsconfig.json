@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "@surv/core": ["../core/src/index.ts"],
+      "@surv/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

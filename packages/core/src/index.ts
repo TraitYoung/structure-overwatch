@@ -1,0 +1,18 @@
+export { AnalysisEngine } from './engine.js';
+export { RepoParser, isSourcePath, toRepoRel } from './parser/parse.js';
+export type { ParsedFile, ParsedImport } from './parser/parse.js';
+export { computePartition, ROOT_MODULE_ID } from './modules/partition.js';
+export type { ModuleDef, Partition } from './modules/partition.js';
+export { WorldGraph, toGraphEdge, internalEdgeId, externalEdgeId } from './graph/worldGraph.js';
+export type { FileEdge, EdgeDelta } from './graph/worldGraph.js';
+export { stronglyConnectedComponents, cycleComponents } from './graph/scc.js';
+export { fileHealth } from './metrics/metrics.js';
+export { loadBoundariesConfig, evaluateBoundaries } from './boundaries/engine.js';
+export type { ResolvedBoundariesConfig, LoadedConfig, BoundaryContext } from './boundaries/engine.js';
+export { globToRegExp, matchGlob } from './boundaries/glob.js';
+export { WorldStore } from './store/worldStore.js';
+export type { WorldUpdate, EventSeed } from './store/worldStore.js';
+export { startWatcher } from './watcher/watcher.js';
+export type { FsEvent, WatcherHandle } from './watcher/watcher.js';
+export { buildWorld } from './model/buildWorld.js';
+export type { WorldModel, BuildWorldInput } from './model/buildWorld.js';

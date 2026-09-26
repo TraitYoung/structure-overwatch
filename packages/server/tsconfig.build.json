@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@surv/core": ["../core/dist/index.d.ts"],
+      "@surv/shared": ["../shared/dist/index.d.ts"]
+    }
+  }
+}

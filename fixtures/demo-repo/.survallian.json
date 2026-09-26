@@ -1,0 +1,6 @@
+{
+  "rules": [
+    { "from": "src/ui/**", "deny": ["src/services/repo/**"] }
+  ],
+  "godModuleFanIn": 4
+}

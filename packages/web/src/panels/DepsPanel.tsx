@@ -5,6 +5,8 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
   type Simulation,
   type SimulationLinkDatum,
   type SimulationNodeDatum,
@@ -19,6 +21,9 @@ interface ForceNode extends SimulationNodeDatum {
   kind: 'module' | 'external';
   radius: number;
   weight: number; // files 或 fanIn
+  pagerank?: number;
+  community?: number;
+  layer?: number;
 }
 
 interface ForceLink extends SimulationLinkDatum<ForceNode> {
@@ -31,6 +36,14 @@ const KIND_LABEL: Record<EdgeKind, string> = {
   external: '外部包',
 };
 
+/** 社区配色：按编号在色环上取间隔均匀的色相，保证相邻社区颜色可区分 */
+function communityColor(idx: number): string {
+  return `hsl(${(idx * 47 + 13) % 360} 62% 62%)`;
+}
+
+const W = 340;
+const H = 360;
+
 export function DepsPanel(): JSX.Element {
   const rev = useWorld((st) => st.rev);
   const nodes = useWorld((st) => st.nodes);
@@ -38,6 +51,8 @@ export function DepsPanel(): JSX.Element {
   const selectedModuleId = useWorld((st) => st.selectedModuleId);
   const [kinds, setKinds] = useState<Set<EdgeKind>>(new Set(['import', 'type-import', 'external']));
   const [selectedNode, setSelectedNode] = useState<ForceNode | null>(null);
+  const [showCommunity, setCommunityColor] = useState(false);
+  const [layered, setLayered] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simNodesRef = useRef<ForceNode[]>([]);
   const simRef = useRef<Simulation<ForceNode, ForceLink> | null>(null);
@@ -52,7 +67,7 @@ export function DepsPanel(): JSX.Element {
   };
 
   // 构建模块级力导向图
-  const { moduleNodes, moduleLinks } = useMemo(() => {
+  const { moduleNodes, moduleLinks, layerCount } = useMemo(() => {
     const mods = [...nodes.values()].filter((n): n is GraphNode & { kind: 'module' } => n.kind === 'module');
     const externals = new Map<string, number>(); // pkg -> 引用模块数
     const linkAgg = new Map<string, number>(); // fromId|toId -> weight
@@ -74,13 +89,21 @@ export function DepsPanel(): JSX.Element {
       }
     }
 
-    const forceMods: ForceNode[] = mods.map((m) => ({
-      id: m.id,
-      name: m.name,
-      kind: 'module' as const,
-      radius: 8 + Math.sqrt(m.metrics?.kind === 'module' ? m.metrics.files : 1) * 2.6,
-      weight: m.metrics?.kind === 'module' ? m.metrics.files : 1,
-    }));
+    let maxLayer = -1;
+    const forceMods: ForceNode[] = mods.map((m) => {
+      const mm = m.metrics?.kind === 'module' ? m.metrics : undefined;
+      if (mm?.layer !== undefined && mm.layer > maxLayer) maxLayer = mm.layer;
+      return {
+        id: m.id,
+        name: m.name,
+        kind: 'module' as const,
+        radius: 8 + Math.sqrt(mm?.files ?? 1) * 2.6,
+        weight: mm?.files ?? 1,
+        pagerank: mm?.pagerank,
+        community: mm?.community,
+        layer: mm?.layer,
+      };
+    });
     const forceExternals: ForceNode[] = [...externals.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(0, 24) // 外部包太多时只显示最常用的
@@ -100,14 +123,16 @@ export function DepsPanel(): JSX.Element {
       const target = byId.get(to);
       if (source && target) links.push({ source, target, weight });
     }
-    return { moduleNodes: [...forceMods, ...forceExternals], moduleLinks: links };
+    return { moduleNodes: [...forceMods, ...forceExternals], moduleLinks: links, layerCount: maxLayer + 1 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rev, kinds]);
 
-  // 力导向布局（同步跑 300 tick）
+  // 地层带：layerCount 层 + 最底部「外部/无层」带
+  const bandCount = layerCount > 0 ? layerCount + 1 : 0;
+  const bandY = (bandIdx: number) => ((bandIdx + 0.5) / bandCount) * H;
+
+  // 力导向布局（同步跑 300 tick；分层模式下锁 y 到地层带）
   useEffect(() => {
-    const W = 340;
-    const H = 360;
     const simNodes: ForceNode[] = moduleNodes.map((n, i) => ({
       ...n,
       // 确定性初始位置：圆周均匀分布
@@ -123,23 +148,30 @@ export function DepsPanel(): JSX.Element {
           .strength(0.4),
       )
       .force('charge', forceManyBody().strength(-220))
-      .force('center', forceCenter(W / 2, H / 2))
       .force('collide', forceCollide<ForceNode>((n) => n.radius + 6))
       .stop();
+    if (layered && bandCount > 0) {
+      sim
+        .force('x', forceX<ForceNode>(W / 2).strength(0.06))
+        .force(
+          'y',
+          forceY<ForceNode>((n) => bandY(n.kind === 'module' && n.layer !== undefined ? n.layer : bandCount - 1)).strength(0.9),
+        );
+    } else {
+      sim.force('center', forceCenter(W / 2, H / 2));
+    }
     for (let i = 0; i < 300; i++) sim.tick();
     simRef.current = sim;
     return () => {
       sim.stop();
     };
-  }, [moduleNodes, moduleLinks]);
+  }, [moduleNodes, moduleLinks, layered, bandCount]);
 
   // 绘制
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    const W = 340;
-    const H = 360;
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     canvas.style.width = `${W}px`;
@@ -150,6 +182,21 @@ export function DepsPanel(): JSX.Element {
     ctx.clearRect(0, 0, W, H);
 
     const byId = new Map(simNodesRef.current.map((n) => [n.id, n]));
+
+    // 地层背景带（分层模式）：依赖应自上而下流动，底部为外部/无层带
+    if (layered && bandCount > 0) {
+      for (let b = 0; b < bandCount; b++) {
+        if (b % 2 === 1) continue;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.028)';
+        ctx.fillRect(0, (b / bandCount) * H, W, H / bandCount);
+      }
+      ctx.font = '600 9px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(200, 205, 220, 0.5)';
+      const layerLabel = (b: number) => (b === bandCount - 1 ? '外部/无层' : `L${b}`);
+      for (let b = 0; b < bandCount; b++) ctx.fillText(layerLabel(b), 4, (b / bandCount) * H + 3);
+    }
 
     // 边
     for (const l of moduleLinks) {
@@ -165,6 +212,20 @@ export function DepsPanel(): JSX.Element {
       ctx.stroke();
     }
 
+    // 承重墙光晕（结构重要性 ∝ 发光强度）
+    for (const n of simNodesRef.current) {
+      if (n.kind !== 'module' || !n.x || !n.y || n.pagerank === undefined || n.pagerank < 0.1) continue;
+      const glowR = n.radius * (1.6 + n.pagerank * 1.4);
+      const grad = ctx.createRadialGradient(n.x, n.y, n.radius * 0.5, n.x, n.y, glowR);
+      const alpha = 0.06 + n.pagerank * 0.3;
+      grad.addColorStop(0, `rgba(255, 214, 130, ${alpha})`);
+      grad.addColorStop(1, 'rgba(255, 214, 130, 0)');
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
     // 节点
     for (const n of simNodesRef.current) {
       if (!n.x || !n.y) continue;
@@ -172,7 +233,12 @@ export function DepsPanel(): JSX.Element {
       const isMapSel = selectedModuleId === n.id;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = n.kind === 'module' ? provinceColor(n.name).bright : '#8ba3c7';
+      if (n.kind === 'module') {
+        ctx.fillStyle =
+          showCommunity && n.community !== undefined ? communityColor(n.community) : provinceColor(n.name).bright;
+      } else {
+        ctx.fillStyle = '#8ba3c7';
+      }
       ctx.fill();
       if (n.kind === 'external') {
         ctx.strokeStyle = 'rgba(20,24,34,0.9)';
@@ -194,7 +260,7 @@ export function DepsPanel(): JSX.Element {
       const label = n.name.length > 12 ? `${n.name.slice(0, 11)}…` : n.name;
       ctx.fillText(label, n.x, n.y + n.radius + 2);
     }
-  }, [moduleLinks, selectedNode, selectedModuleId]);
+  }, [moduleLinks, selectedNode, selectedModuleId, showCommunity, layered, bandCount]);
 
   const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -260,12 +326,22 @@ export function DepsPanel(): JSX.Element {
             {KIND_LABEL[k]}
           </label>
         ))}
+        <label className={`filter-chip ${showCommunity ? 'on' : ''}`}>
+          <input type="checkbox" checked={showCommunity} onChange={() => setCommunityColor((v) => !v)} />
+          社区着色
+        </label>
+        <label className={`filter-chip ${layered ? 'on' : ''}`}>
+          <input type="checkbox" checked={layered} onChange={() => setLayered((v) => !v)} />
+          分层地层
+        </label>
       </div>
       <canvas ref={canvasRef} className="deps-canvas" onClick={onCanvasClick} />
       {selectedNode ? (
         <div className="deps-detail">
           <div className="deps-detail-name">
             {selectedNode.kind === 'module' ? '省份' : '外部'} · {selectedNode.name}
+            {selectedNode.kind === 'module' && selectedNode.pagerank !== undefined && ` · 承重 ${selectedNode.pagerank}`}
+            {selectedNode.kind === 'module' && selectedNode.layer !== undefined && ` · 第 ${selectedNode.layer} 层`}
           </div>
           {detail && detail.incoming.length > 0 && (
             <div className="deps-detail-row">
@@ -285,7 +361,7 @@ export function DepsPanel(): JSX.Element {
           )}
         </div>
       ) : (
-        <div className="panel-empty">点击节点查看依赖详情；选中省份节点会同步地图。</div>
+        <div className="panel-empty">点击节点查看依赖详情；选中省份节点会同步地图。「社区着色」对比实际耦合与目录省份，「分层地层」展示 SCC 缩点后的理论分层。</div>
       )}
     </div>
   );

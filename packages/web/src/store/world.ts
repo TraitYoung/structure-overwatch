@@ -113,6 +113,17 @@ export const useWorld = create<WorldState>()((set, get) => ({
   setIsoOpen: (v) => set({ isoOpen: v }),
 }));
 
+/** 波及分析结果（地图渲染专用，右键文件触发） */
+export interface ImpactInfo {
+  fileId: string;
+  /** 会被波及的文件（反向传递：谁传递依赖我） */
+  downstream: ReadonlySet<string>;
+  /** 依赖供给链（正向传递：我传递依赖谁） */
+  upstream: ReadonlySet<string>;
+  /** 下游受影响文件涉及的模块 */
+  modules: ReadonlySet<string>;
+}
+
 /** 地图渲染专用的易变信号：变更脉冲与边境冲突高亮（不触发 React 渲染） */
 export const mapSignals = {
   /** fileId -> 最近变更时间戳（ms） */
@@ -120,6 +131,8 @@ export const mapSignals = {
   /** 边境冲突高亮：模块 id 集合 + 失效时间 */
   highlight: { ids: new Set<string>(), until: 0 },
   alertPulseUntil: 0,
+  /** 波及分析（右键文件触发，Esc/点空白清除） */
+  impact: null as ImpactInfo | null,
 
   recordChanges(fileIds: string[], now = Date.now()) {
     for (const id of fileIds) this.changes.set(id, now);

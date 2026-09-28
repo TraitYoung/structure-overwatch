@@ -11,6 +11,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ModuleDef } from '../modules/partition.js';
 import type { FileEdge } from '../graph/worldGraph.js';
+import type { MisplacedGroup } from '../analytics/community.js';
+import type { LayeringResult } from '../analytics/layering.js';
 import { matchGlob } from './glob.js';
 
 export interface ResolvedBoundariesConfig {
@@ -72,6 +74,10 @@ export interface BoundaryContext {
   moduleCycles: readonly (readonly string[])[];
   rootModuleId: string;
   config: ResolvedBoundariesConfig;
+  /** 图情报：错位文件分组（降级时为空数组） */
+  misplaced: readonly MisplacedGroup[];
+  /** 图情报：SCC 缩点分层结果 */
+  layering: LayeringResult;
 }
 
 function hashId(prefix: string, parts: readonly string[]): string {
@@ -188,6 +194,50 @@ export function evaluateBoundaries(ctx: BoundaryContext): Violation[] {
         moduleIds: [id],
       });
     }
+  }
+
+  // 7. 图情报：社区错位（重构建议）——实际耦合簇与目录省份不符
+  for (const g of ctx.misplaced) {
+    const fromName = ctx.moduleById.get(g.fromModule)?.name ?? g.fromModule.replace(/^module:/, '');
+    const toName = ctx.moduleById.get(g.toModule)?.name ?? g.toModule.replace(/^module:/, '');
+    violations.push({
+      id: hashId('misplaced', [g.fromModule, g.toModule, ...g.files]),
+      type: 'misplaced',
+      severity: 'medium',
+      title: `错位文件：${fromName} 的 ${g.files.length} 个文件实际耦合在 ${toName} 群落`,
+      detail: `${[...g.files].sort().join('\n')}\n\n图情报：这些文件与 ${toName} 的文件强相连（社区 ≥3 文件），建议迁入 ${toName}`,
+      nodeIds: g.files.slice(0, 20),
+      moduleIds: [g.fromModule, g.toModule],
+    });
+  }
+
+  // 8. 图情报：熔炉循环群——≥3 个省份缩点后仍是一团
+  for (const comp of ctx.layering.megaCycles) {
+    const names = comp.map((id) => ctx.moduleById.get(id)?.name ?? id.replace(/^module:/, ''));
+    violations.push({
+      id: hashId('mega', comp),
+      type: 'megacycle',
+      severity: 'high',
+      title: `熔炉循环群：${comp.length} 个省份缠成一团`,
+      detail: `成员：${names.join(' ⇄ ')}\n整团在分层视图中占据同一地层，建议从被外部依赖最少的省份开始解环`,
+      nodeIds: [...comp],
+      moduleIds: [...comp],
+    });
+  }
+
+  // 9. 图情报：跨层引用——模块依赖跨层直连，跳过中间层
+  for (const e of ctx.layering.skipLayerEdges) {
+    const fromName = ctx.moduleById.get(e.from)?.name ?? e.from.replace(/^module:/, '');
+    const toName = ctx.moduleById.get(e.to)?.name ?? e.to.replace(/^module:/, '');
+    violations.push({
+      id: `skip:${e.from}->${e.to}`,
+      type: 'skip-layer',
+      severity: 'low',
+      title: `跨层引用：${fromName}（第 ${e.fromLayer} 层）直连 ${toName}（第 ${e.toLayer} 层）`,
+      detail: `跳过 ${e.toLayer - e.fromLayer - 1} 个中间层，共 ${e.weight} 条依赖；跨层耦合使地层结构失真`,
+      nodeIds: [e.from, e.to],
+      moduleIds: [e.from, e.to],
+    });
   }
 
   return violations.sort(

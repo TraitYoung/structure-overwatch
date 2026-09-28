@@ -1,5 +1,6 @@
 import { UserRepo } from '@/services/repo/userRepo';
 import { logger } from '@/utils/logger';
+import { getJson } from '@/infra/http';
 import type { User } from '@/domain/user';
 
 export class Panel {
@@ -10,5 +11,11 @@ export class Panel {
     const repo = new UserRepo();
     logger.info(`面板渲染 ${this.user.name}`);
     return repo.find(this.user.id);
+  }
+
+  // 反模式：UI 层跨过 services 直连最底层 infra（跨层引用）
+  async prefetch(url: string) {
+    const res = await getJson<unknown>(url);
+    return res.status;
   }
 }

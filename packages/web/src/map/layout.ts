@@ -185,6 +185,62 @@ export function computeLayout(modules: readonly LayoutModuleInput[], prev?: MapL
   return { provinces, cellToFile, fileToCell, fileCount, bounds: { minQ, maxQ, minR, maxR } };
 }
 
+function boundsOf(provinces: Map<string, ProvinceLayout>): MapLayout['bounds'] {
+  let minQ = Infinity, maxQ = -Infinity, minR = Infinity, maxR = -Infinity;
+  for (const p of provinces.values()) {
+    for (const c of p.cells) {
+      minQ = Math.min(minQ, c.q);
+      maxQ = Math.max(maxQ, c.q);
+      minR = Math.min(minR, c.r);
+      maxR = Math.max(maxR, c.r);
+    }
+  }
+  if (!Number.isFinite(minQ)) return { minQ: 0, maxQ: 0, minR: 0, maxR: 0 };
+  return { minQ, maxQ, minR, maxR };
+}
+
+/**
+ * 把省份移动到新原点（吸附六边形网格）。省份是刚体：任何格子压到其他省份即拒绝，返回 null。
+ * 移动成功返回全新布局，原布局不被修改。
+ */
+export function moveProvince(layout: MapLayout, moduleId: string, newOrigin: Axial): MapLayout | null {
+  const province = layout.provinces.get(moduleId);
+  if (!province) return null;
+  const dq = newOrigin.q - province.origin.q;
+  const dr = newOrigin.r - province.origin.r;
+  if (dq === 0 && dr === 0) return layout;
+
+  const newCells = province.cells.map((c) => ({ q: c.q + dq, r: c.r + dr }));
+  const newKeys = new Set(newCells.map(hexKey));
+
+  for (const p of layout.provinces.values()) {
+    if (p.moduleId === moduleId) continue;
+    for (const c of p.cells) {
+      if (newKeys.has(hexKey(c))) return null; // 会压到别的省份
+    }
+  }
+
+  const provinces = new Map(layout.provinces);
+  provinces.set(moduleId, { ...province, origin: newOrigin, cells: newCells, center: newOrigin });
+
+  // 先清旧键再写新键：同一省份平移后新旧格子可能重叠（如 (1,0) 平移半径 1 的省份）
+  const cellToFile = new Map(layout.cellToFile);
+  const fileToCell = new Map(layout.fileToCell);
+  const oldKeys = new Set(province.cells.map(hexKey));
+  const myFiles: Array<[string, Axial]> = [];
+  for (const [file, cell] of layout.fileToCell) {
+    if (oldKeys.has(hexKey(cell))) myFiles.push([file, cell]);
+  }
+  for (const key of oldKeys) cellToFile.delete(key);
+  for (const [file, cell] of myFiles) {
+    const moved = { q: cell.q + dq, r: cell.r + dr };
+    fileToCell.set(file, moved);
+    cellToFile.set(hexKey(moved), file);
+  }
+
+  return { provinces, cellToFile, fileToCell, fileCount: layout.fileCount, bounds: boundsOf(provinces) };
+}
+
 /** 轴坐标 → 世界像素（pointy-top） */
 export function hexToWorld(h: Axial, size = HEX_SIZE): { x: number; y: number } {
   return {

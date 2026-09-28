@@ -67,6 +67,9 @@ export class AnalysisEngine {
   private prevCycleFiles = new Set<string>();
   private prevModuleIds = new Set<string>();
   private prevExternalIds = new Set<string>();
+  private prevFileAnalytics = new Map<string, { pagerank: number; community: number }>();
+  private prevTopFile: { id: string; pagerank: number } | null = null;
+  private prevLargestCycle: number | null = null;
 
   constructor(public readonly repoRoot: string) {
     this.parser = new RepoParser(repoRoot);
@@ -119,6 +122,9 @@ export class AnalysisEngine {
     this.prevCycleFiles = new Set(world.fileCycles.flat());
     this.prevModuleIds = new Set(world.nodes.filter((n) => n.kind === 'module').map((n) => n.id));
     this.prevExternalIds = new Set(world.nodes.filter((n) => n.kind === 'external').map((n) => n.id));
+    this.prevFileAnalytics = new Map(world.fileAnalytics);
+    this.prevTopFile = world.graphTrends.topFile;
+    this.prevLargestCycle = world.graphTrends.largestModuleCycle;
 
     const seeds: EventSeed[] = [];
     if (this.configError) {
@@ -212,6 +218,13 @@ export class AnalysisEngine {
     for (const f of this.prevCycleFiles) if (!curCycleFiles.has(f)) touched.add(f);
     this.prevCycleFiles = curCycleFiles;
 
+    // 图情报（pagerank/社区）变化的文件同样需要重发
+    for (const [f, a] of world.fileAnalytics) {
+      const prev = this.prevFileAnalytics.get(f);
+      if (!prev || prev.pagerank !== a.pagerank || prev.community !== a.community) touched.add(f);
+    }
+    this.prevFileAnalytics = new Map(world.fileAnalytics);
+
     const moduleNodes = world.nodes.filter((n): n is GraphNode & { kind: 'module' } => n.kind === 'module');
     const externalNodes = world.nodes.filter((n): n is GraphNode & { kind: 'external' } => n.kind === 'external');
     const curModuleIds = new Set(moduleNodes.map((n) => n.id));
@@ -262,6 +275,29 @@ export class AnalysisEngine {
         moduleIds: [m.id],
       });
     }
+
+    // 图情报趋势播报：承重墙易主 / 最大循环群变化
+    const top = world.graphTrends.topFile;
+    if (top && this.prevTopFile && this.prevTopFile.id !== top.id) {
+      seeds.push({
+        kind: 'analysis',
+        message: `图情报：承重墙易主 → ${top.id}（结构重要性 ${top.pagerank}）`,
+        nodeIds: [top.id],
+      });
+    }
+    this.prevTopFile = top;
+    const cyc = world.graphTrends.largestModuleCycle;
+    if (this.prevLargestCycle !== null && cyc !== this.prevLargestCycle && Math.max(cyc, this.prevLargestCycle) >= 2) {
+      seeds.push({
+        kind: 'analysis',
+        severity: cyc > this.prevLargestCycle ? 'medium' : 'info',
+        message:
+          cyc > this.prevLargestCycle
+            ? `图情报：耦合恶化，最大循环群扩大到 ${cyc} 个省份`
+            : `图情报：耦合改善，最大循环群缩小到 ${cyc} 个省份`,
+      });
+    }
+    this.prevLargestCycle = cyc;
 
     this.store.apply({
       nodesUpserted,

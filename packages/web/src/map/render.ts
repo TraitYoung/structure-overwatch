@@ -199,6 +199,32 @@ export function drawMap(input: RenderInput): void {
     ctx.stroke();
   }
 
+  // ---- 波及范围（右键文件触发）----
+  const impact = mapSignals.impact;
+  if (impact) {
+    const paintCells = (ids: ReadonlySet<string>, color: string) => {
+      for (const f of ids) {
+        const cell = layout.fileToCell.get(f);
+        if (!cell) continue;
+        const corners = hexCorners(cell).map((c) => toScreen(c.x, c.y));
+        traceHexPath(ctx, corners);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+    };
+    paintCells(impact.downstream, 'rgba(255, 120, 60, 0.30)'); // 下游：暖色（会被炸到）
+    paintCells(impact.upstream, 'rgba(90, 150, 255, 0.22)'); // 上游：冷色（供给链）
+    const centerCell = layout.fileToCell.get(impact.fileId);
+    if (centerCell) {
+      const pulse = 0.6 + 0.4 * Math.sin(now / 220);
+      const corners = hexCorners(centerCell, HEX_SIZE * (1.15 + 0.25 * pulse)).map((c) => toScreen(c.x, c.y));
+      traceHexPath(ctx, corners);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + 0.4 * pulse})`;
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+    }
+  }
+
   // ---- 省份标签 ----
   if (s >= 0.45) {
     ctx.textAlign = 'center';
@@ -221,6 +247,35 @@ export function drawMap(input: RenderInput): void {
         ctx.fillText(sub, c.x, c.y + 9);
       }
     }
+  }
+
+  // ---- 波及分析 HUD ----
+  if (impact) {
+    const node = nodes.get(impact.fileId);
+    const lines = [
+      `波及分析 · ${node?.name ?? impact.fileId}`,
+      `下游受影响 ${impact.downstream.size} 文件 · ${impact.modules.size} 省份`,
+      `上游供给 ${impact.upstream.size} 文件`,
+      '点击空白或按 Esc 关闭',
+    ];
+    const boxW = Math.max(...lines.map((l) => l.length)) * 6.8 + 24;
+    const boxH = lines.length * 17 + 14;
+    const bx = 18;
+    const by = 70;
+    ctx.fillStyle = 'rgba(12, 14, 20, 0.92)';
+    ctx.strokeStyle = 'rgba(255, 140, 80, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, boxW, boxH, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    lines.forEach((l, i) => {
+      ctx.fillStyle = i === 0 ? '#ffd9a8' : i === lines.length - 1 ? '#8b93a5' : '#b9c0cf';
+      ctx.font = `${i === 0 ? 600 : 400} 11.5px ui-monospace, monospace`;
+      ctx.fillText(l, bx + 12, by + 9 + i * 17);
+    });
   }
 
   // ---- 悬停文件信息卡 ----

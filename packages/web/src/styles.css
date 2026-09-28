@@ -273,6 +273,9 @@ body,
 .type-deep-import { color: var(--amber); border-color: var(--amber); }
 .type-god-module { color: var(--purple); border-color: var(--purple); }
 .type-orphan { color: var(--blue); border-color: var(--blue); }
+.type-misplaced { color: #7fd8c8; border-color: #7fd8c8; }
+.type-megacycle { color: #ff7ad9; border-color: #ff7ad9; }
+.type-skip-layer { color: #a8b8ff; border-color: #a8b8ff; }
 
 .violation-title {
   font-size: 12px;

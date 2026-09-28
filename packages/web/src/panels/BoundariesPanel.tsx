@@ -7,6 +7,9 @@ const TYPE_LABEL: Record<ViolationType, string> = {
   'deep-import': '深导入',
   'god-module': '上帝',
   orphan: '孤岛',
+  misplaced: '错位',
+  megacycle: '熔炉',
+  'skip-layer': '跨层',
 };
 
 const SEVERITY_LABEL: Record<Severity, string> = {

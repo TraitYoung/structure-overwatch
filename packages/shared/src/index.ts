@@ -16,6 +16,10 @@ export interface FileMetrics {
   fanOut: number;
   /** 0-100 健康度 */
   health: number;
+  /** 图情报：结构重要性（PageRank，归一化到 max=1；降级时缺省） */
+  pagerank?: number;
+  /** 图情报：实际耦合社区编号（label propagation；降级时缺省） */
+  community?: number;
 }
 
 export interface ModuleMetrics {
@@ -34,6 +38,12 @@ export interface ModuleMetrics {
   health: number;
   /** 是否处于模块级循环依赖中 */
   cyclic: boolean;
+  /** 图情报：结构重要性（PageRank，归一化到 max=1） */
+  pagerank?: number;
+  /** 图情报：模块级耦合社区编号 */
+  community?: number;
+  /** 图情报：SCC 缩点分层（0=最底层基础层，越大越靠上） */
+  layer?: number;
 }
 
 export interface GraphNode {
@@ -63,7 +73,18 @@ export interface GraphEdge {
 
 export type Severity = 'high' | 'medium' | 'low';
 
-export type ViolationType = 'cycle' | 'layer' | 'deep-import' | 'god-module' | 'orphan';
+export type ViolationType =
+  | 'cycle'
+  | 'layer'
+  | 'deep-import'
+  | 'god-module'
+  | 'orphan'
+  /** 图情报：文件实际耦合社区与所属省份不符（重构建议） */
+  | 'misplaced'
+  /** 图情报：≥3 个模块缩点后仍是一团（熔炉循环群） */
+  | 'megacycle'
+  /** 图情报：模块依赖跨层直连（跳过中间层） */
+  | 'skip-layer';
 
 export interface Violation {
   id: string;

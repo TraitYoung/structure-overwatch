@@ -9,9 +9,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch --clear-screen=false src/cli.ts watch",
-    "demo": "tsx --clear-screen=false src/cli.ts watch ../../fixtures/demo-repo",
-    "cli": "tsx --clear-screen=false src/cli.ts"
+    "dev": "tsx watch src/cli.ts watch",
+    "demo": "tsx src/cli.ts watch ../../fixtures/demo-repo",
+    "cli": "tsx src/cli.ts"
   },
   "dependencies": {
     "@fastify/static": "^8.0.3",

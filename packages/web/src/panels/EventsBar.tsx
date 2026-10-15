@@ -33,20 +33,20 @@ export function EventsBar(): JSX.Element {
 
   return (
     <div className="events-bar">
-      <div className="events-title">编年史</div>
+      <div className="events-title"><span>变更记录 <small>OBSERVATION LOG</small></span><span>{String(events.length).padStart(2, '0')} RECORDS</span></div>
       <div className="events-list" ref={listRef}>
         {events.length === 0 && <div className="events-empty">等待事件……</div>}
         {events.map((ev) => (
-          <div
+          <button
             key={ev.id}
             className={`event-item ${SEVERITY_CLASS[ev.severity]} ${ev.moduleIds?.length ? 'clickable' : ''}`}
             onClick={() => onClick(ev)}
-            title={ev.moduleIds?.length ? '点击在地图上高亮相关省份' : undefined}
+            title={ev.moduleIds?.length ? '点击在地图上高亮相关模块' : undefined}
           >
             <span className="event-mark">{SEVERITY_MARK[ev.severity]}</span>
             <span className="event-time">{new Date(ev.ts).toLocaleTimeString('zh-CN', { hour12: false })}</span>
             <span className="event-msg">{ev.message}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

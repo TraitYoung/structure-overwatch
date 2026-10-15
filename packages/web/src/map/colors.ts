@@ -17,12 +17,12 @@ const cache = new Map<string, ProvinceColor>();
 export function provinceColor(moduleName: string): ProvinceColor {
   const hit = cache.get(moduleName);
   if (hit) return hit;
-  const hue = (djb2(moduleName) * 137.508) % 360;
+  const hue = 85 + djb2(moduleName) % 80;
   const color: ProvinceColor = {
     hue,
-    fill: `hsl(${hue.toFixed(0)}, 42%, 40%)`,
-    border: `hsl(${hue.toFixed(0)}, 60%, 62%)`,
-    bright: `hsl(${hue.toFixed(0)}, 70%, 72%)`,
+    fill: `hsl(${hue.toFixed(0)}, 12%, 89%)`,
+    border: `hsl(${hue.toFixed(0)}, 12%, 56%)`,
+    bright: `hsl(${hue.toFixed(0)}, 14%, 66%)`,
   };
   cache.set(moduleName, color);
   return color;
@@ -31,5 +31,5 @@ export function provinceColor(moduleName: string): ProvinceColor {
 /** 健康度 → 建筑色相（0=红 60=黄 120=绿） */
 export function healthColor(health: number): string {
   const h = Math.max(0, Math.min(100, health));
-  return `hsl(${((h / 100) * 120).toFixed(0)}, 62%, 50%)`;
+  return h < 70 ? `hsl(25, 22%, ${65 + Math.round(h / 10)}%)` : `hsl(100, 14%, ${65 + Math.round(h / 10)}%)`;
 }

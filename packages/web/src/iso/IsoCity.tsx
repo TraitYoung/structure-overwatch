@@ -19,6 +19,16 @@ const TILE_W = 54;
 const TILE_H = 27;
 const WALL_H = 15;
 
+function projection(buildings: Building[], width: number, height: number) {
+  const bounds = buildings.map((b) => ({ x: (b.col - b.row) * TILE_W / 2, y: (b.col + b.row) * TILE_H / 2, b }));
+  const minX = Math.min(...bounds.map((p) => p.x - TILE_W * p.b.span / 2));
+  const maxX = Math.max(...bounds.map((p) => p.x + TILE_W * p.b.span / 2));
+  const minY = Math.min(...bounds.map((p) => p.y - p.b.height - TILE_H * p.b.span / 2));
+  const maxY = Math.max(...bounds.map((p) => p.y + TILE_H * p.b.span / 2));
+  const scale = Math.max(.1, Math.min(2.6, (width - 140) / (maxX - minX), (height - 160) / (maxY - minY)));
+  return { scale, originX: width / 2 - (minX + maxX) / 2 * scale, originY: height / 2 - (minY + maxY) / 2 * scale };
+}
+
 function diamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number): void {
   ctx.beginPath();
   ctx.moveTo(cx, cy - h / 2);
@@ -33,10 +43,16 @@ export function IsoCity(): JSX.Element | null {
   const selectedModuleId = useWorld((st) => st.selectedModuleId);
   const nodes = useWorld((st) => st.nodes);
   const edges = useWorld((st) => st.edges);
+  const rev = useWorld((st) => st.rev);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const stateRef = useRef({ buildings: [] as Building[], byId: new Map<string, Building>(), selected: null as string | null, hover: null as string | null });
 
   const moduleNode = selectedModuleId ? nodes.get(selectedModuleId) : undefined;
+
+  useEffect(() => {
+    if (isoOpen && moduleNode && !dialogRef.current?.open) dialogRef.current?.showModal();
+  }, [isoOpen, moduleNode]);
 
   // 建筑布局（模块文件变化时重算；位置按路径顺序确定）
   useEffect(() => {
@@ -98,7 +114,7 @@ export function IsoCity(): JSX.Element | null {
       selected: null,
       hover: null,
     };
-  }, [isoOpen, selectedModuleId, nodes]);
+  }, [isoOpen, selectedModuleId, nodes, rev]);
 
   // 渲染循环
   useEffect(() => {
@@ -120,7 +136,7 @@ export function IsoCity(): JSX.Element | null {
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#0d0f15';
+      ctx.fillStyle = '#fcfbf8';
       ctx.fillRect(0, 0, W, H);
 
       const { buildings, byId, selected, hover } = stateRef.current;
@@ -130,11 +146,7 @@ export function IsoCity(): JSX.Element | null {
       }
 
       // 缩放适配
-      const maxCol = Math.max(...buildings.map((b) => b.col + b.span)) + 1;
-      const maxRow = Math.max(...buildings.map((b) => b.row + b.span)) + 1;
-      const scale = Math.min(1.3, Math.min(W / (maxCol * TILE_W + 80), H / (maxRow * TILE_H + 260)));
-      const originX = W / 2;
-      const originY = 90;
+      const { scale, originX, originY } = projection(buildings, W, H);
       const tileToScreen = (c: number, r: number) => ({
         x: originX + (c - r) * (TILE_W / 2) * scale,
         y: originY + (c + r) * (TILE_H / 2) * scale,
@@ -146,9 +158,9 @@ export function IsoCity(): JSX.Element | null {
           for (let dr = 0; dr < b.span; dr++) {
             const p = tileToScreen(b.col + dc, b.row + dr);
             diamond(ctx, p.x, p.y, TILE_W * scale, TILE_H * scale);
-            ctx.fillStyle = 'rgba(60, 62, 72, 0.55)';
+            ctx.fillStyle = '#e9ece3';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            ctx.strokeStyle = '#cdd5c7';
             ctx.lineWidth = 1;
             ctx.stroke();
           }
@@ -168,7 +180,7 @@ export function IsoCity(): JSX.Element | null {
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = active ? 'rgba(255, 226, 150, 0.95)' : 'rgba(233, 196, 128, 0.35)';
+        ctx.strokeStyle = active ? '#5f8090' : '#a2afa1';
         ctx.lineWidth = active ? 2.4 : 1.4;
         ctx.stroke();
       }
@@ -192,7 +204,7 @@ export function IsoCity(): JSX.Element | null {
         ctx.lineTo(cx, cy + d / 2 - h);
         ctx.lineTo(cx - w / 2, cy - h);
         ctx.closePath();
-        ctx.fillStyle = shade(hue, -28);
+        ctx.fillStyle = shade(hue, -8);
         ctx.fill();
         // 右墙（中）
         ctx.beginPath();
@@ -201,20 +213,20 @@ export function IsoCity(): JSX.Element | null {
         ctx.lineTo(cx, cy + d / 2 - h);
         ctx.lineTo(cx + w / 2, cy - h);
         ctx.closePath();
-        ctx.fillStyle = shade(hue, -12);
+        ctx.fillStyle = shade(hue, -8);
         ctx.fill();
         // 屋顶（亮）
         diamond(ctx, cx, cy - h, w, d);
-        ctx.fillStyle = shade(hue, 18);
+        ctx.fillStyle = shade(hue, 10);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.strokeStyle = '#879881';
         ctx.lineWidth = 1;
         ctx.stroke();
 
         // 交互态
         if (hover === b.fileId || selected === b.fileId) {
           diamond(ctx, cx, cy - h, w + 6 * scale, d + 3 * scale);
-          ctx.strokeStyle = selected === b.fileId ? '#9be89b' : '#ffffff';
+          ctx.strokeStyle = selected === b.fileId ? '#5f8291' : '#7b9472';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -236,7 +248,7 @@ export function IsoCity(): JSX.Element | null {
         if (b.complexity > 20) {
           ctx.font = `600 ${9 * Math.min(1, scale + 0.3)}px system-ui`;
           ctx.textAlign = 'center';
-          ctx.fillStyle = 'rgba(255,255,255,0.75)';
+          ctx.fillStyle = '#9d6e55';
           ctx.fillText('⚠', cx, cy - h - 8);
         }
       }
@@ -256,8 +268,8 @@ export function IsoCity(): JSX.Element | null {
           const boxH = lines.length * 17 + 14;
           const bx = 14;
           const by = H - boxH - 14;
-          ctx.fillStyle = 'rgba(12, 14, 20, 0.92)';
-          ctx.strokeStyle = 'rgba(226, 183, 105, 0.5)';
+          ctx.fillStyle = '#fcfbf8';
+          ctx.strokeStyle = '#a0b198';
           ctx.beginPath();
           ctx.roundRect(bx, by, boxW, boxH, 6);
           ctx.fill();
@@ -265,7 +277,7 @@ export function IsoCity(): JSX.Element | null {
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
           lines.forEach((l, i) => {
-            ctx.fillStyle = i === 0 ? '#f5efdd' : '#b9c0cf';
+            ctx.fillStyle = i === 0 ? '#34453d' : '#65755f';
             ctx.font = `${i === 0 ? 600 : 400} 11.5px ui-monospace, monospace`;
             ctx.fillText(l, bx + 12, by + 9 + i * 17);
           });
@@ -287,20 +299,16 @@ export function IsoCity(): JSX.Element | null {
     const my = e.clientY - rect.top;
     const { buildings } = stateRef.current;
     if (buildings.length === 0) return;
-    const maxCol = Math.max(...buildings.map((b) => b.col + b.span)) + 1;
-    const maxRow = Math.max(...buildings.map((b) => b.row + b.span)) + 1;
     const W = rect.width;
     const H = rect.height;
-    const scale = Math.min(1.3, Math.min(W / (maxCol * TILE_W + 80), H / (maxRow * TILE_H + 260)));
-    const originX = W / 2;
-    const originY = 90;
+    const { scale, originX, originY } = projection(buildings, W, H);
     let hit: string | null = null;
     let bestZ = -1;
     for (const b of buildings) {
-      const px = originX + (b.col + b.span / 2 - (b.row + b.span / 2)) * (TILE_W / 2) * scale;
-      const py = originY + (b.col + b.span / 2 + b.row + b.span / 2) * (TILE_H / 2) * scale;
-      const dx = Math.abs(mx - px) / ((TILE_W * b.span * scale) / 2);
-      const dy = Math.abs(my - py) / ((TILE_H * b.span * scale) / 2);
+      const px = originX + (b.col - b.row) * (TILE_W / 2) * scale;
+      const py = originY + (b.col + b.row) * (TILE_H / 2) * scale - b.height * scale;
+      const dx = Math.abs(mx - px) / (((TILE_W * b.span - 6) * scale) / 2);
+      const dy = Math.abs(my - py) / (((TILE_H * b.span - 3) * scale) / 2);
       if (dx + dy <= 1.2) {
         const z = b.col + b.row;
         if (z > bestZ) {
@@ -322,15 +330,15 @@ export function IsoCity(): JSX.Element | null {
   const color = provinceColor(moduleNode.name);
 
   return (
-    <div className="iso-overlay" onClick={(e) => e.target === e.currentTarget && useWorld.getState().setIsoOpen(false)}>
+    <dialog ref={dialogRef} className="iso-overlay" aria-label={`模块剖面 ${moduleNode.name}`} onCancel={() => useWorld.getState().setIsoOpen(false)} onClick={(e) => e.target === e.currentTarget && useWorld.getState().setIsoOpen(false)}>
       <div className="iso-window">
         <div className="iso-header" style={{ borderColor: color.border }}>
           <div className="iso-title">
             <span className="iso-dot" style={{ background: color.bright }} />
-            省份 {moduleNode.name}
+            模块剖面 / {moduleNode.name}
             {metrics && (
               <span className="iso-stats">
-                {metrics.files} 建筑 · {metrics.loc} 行 · 健康 {metrics.health}
+                {metrics.files} 文件单元 · {metrics.loc} 行 · 健康 {metrics.health}
                 {metrics.cyclic ? ' · 处于循环' : ''}
               </span>
             )}
@@ -347,10 +355,10 @@ export function IsoCity(): JSX.Element | null {
           onClick={onCanvasClick}
         />
         <div className="iso-legend">
-          建筑高度 = 复杂度 · 颜色 = 健康度 · 大占地 = 长文件（&gt;420 行）· 金线 = 模块内依赖 · 点击建筑查看其道路
+          建筑高度 = 复杂度 · 颜色 = 健康度 · 大占地 = 长文件（&gt;420 行）· 细线 = 模块内依赖 · 点击建筑查看其道路
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
 

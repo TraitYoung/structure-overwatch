@@ -38,7 +38,7 @@ const KIND_LABEL: Record<EdgeKind, string> = {
 
 /** 社区配色：按编号在色环上取间隔均匀的色相，保证相邻社区颜色可区分 */
 function communityColor(idx: number): string {
-  return `hsl(${(idx * 47 + 13) % 360} 62% 62%)`;
+  return `hsl(${(idx * 47 + 13) % 360} 18% 63%)`;
 }
 
 const W = 340;
@@ -143,7 +143,12 @@ export function DepsPanel(): JSX.Element {
     const sim = forceSimulation<ForceNode, ForceLink>(simNodes)
       .force(
         'link',
-        forceLink<ForceNode, ForceLink>(moduleLinks)
+        forceLink<ForceNode, ForceLink>(moduleLinks.map((link) => ({
+          ...link,
+          source: typeof link.source === 'object' ? link.source.id : link.source,
+          target: typeof link.target === 'object' ? link.target.id : link.target,
+        })))
+          .id((node) => node.id)
           .distance((l) => 90 - Math.min(40, l.weight * 6))
           .strength(0.4),
       )
@@ -187,27 +192,27 @@ export function DepsPanel(): JSX.Element {
     if (layered && bandCount > 0) {
       for (let b = 0; b < bandCount; b++) {
         if (b % 2 === 1) continue;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.028)';
+        ctx.fillStyle = 'rgba(105, 130, 110, 0.045)';
         ctx.fillRect(0, (b / bandCount) * H, W, H / bandCount);
       }
       ctx.font = '600 9px system-ui, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = 'rgba(200, 205, 220, 0.5)';
+      ctx.fillStyle = '#65755f';
       const layerLabel = (b: number) => (b === bandCount - 1 ? '外部/无层' : `L${b}`);
       for (let b = 0; b < bandCount; b++) ctx.fillText(layerLabel(b), 4, (b / bandCount) * H + 3);
     }
 
     // 边
     for (const l of moduleLinks) {
-      const s = byId.get(l.source as unknown as string) ?? (l.source as unknown as ForceNode);
-      const t = byId.get(l.target as unknown as string) ?? (l.target as unknown as ForceNode);
+      const s = byId.get(typeof l.source === 'object' ? l.source.id : String(l.source));
+      const t = byId.get(typeof l.target === 'object' ? l.target.id : String(l.target));
       if (!s?.x || !s?.y || !t?.x || !t?.y) continue;
       const isExternal = t.kind === 'external';
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(t.x, t.y);
-      ctx.strokeStyle = isExternal ? 'rgba(140, 160, 200, 0.30)' : 'rgba(226, 183, 105, 0.38)';
+      ctx.strokeStyle = isExternal ? 'rgba(105, 130, 142, 0.45)' : 'rgba(112, 132, 117, 0.5)';
       ctx.lineWidth = Math.min(4, 0.8 + l.weight * 0.4);
       ctx.stroke();
     }
@@ -237,18 +242,18 @@ export function DepsPanel(): JSX.Element {
         ctx.fillStyle =
           showCommunity && n.community !== undefined ? communityColor(n.community) : provinceColor(n.name).bright;
       } else {
-        ctx.fillStyle = '#8ba3c7';
+        ctx.fillStyle = '#829aa5';
       }
       ctx.fill();
       if (n.kind === 'external') {
-        ctx.strokeStyle = 'rgba(20,24,34,0.9)';
+        ctx.strokeStyle = '#627e8c';
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
       if (isSel || isMapSel) {
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.radius + 3.5, 0, Math.PI * 2);
-        ctx.strokeStyle = isMapSel ? '#ffffff' : '#9be89b';
+        ctx.strokeStyle = isMapSel ? '#4f7182' : '#607a58';
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -256,7 +261,7 @@ export function DepsPanel(): JSX.Element {
       ctx.font = `${n.kind === 'module' ? 600 : 400} 10px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = n.kind === 'module' ? '#f2ead8' : '#8ba3c7';
+      ctx.fillStyle = n.kind === 'module' ? '#35463d' : '#829aa5';
       const label = n.name.length > 12 ? `${n.name.slice(0, 11)}…` : n.name;
       ctx.fillText(label, n.x, n.y + n.radius + 2);
     }
@@ -316,7 +321,7 @@ export function DepsPanel(): JSX.Element {
   return (
     <div className="panel deps-panel">
       <div className="panel-header">
-        <span className="panel-title">依赖星图</span>
+        <span className="panel-title">依赖分析 / Relations</span>
         <span className="panel-count">{moduleNodes.length} 节点</span>
       </div>
       <div className="deps-filters">
@@ -339,7 +344,7 @@ export function DepsPanel(): JSX.Element {
       {selectedNode ? (
         <div className="deps-detail">
           <div className="deps-detail-name">
-            {selectedNode.kind === 'module' ? '省份' : '外部'} · {selectedNode.name}
+            {selectedNode.kind === 'module' ? '模块' : '外部'} · {selectedNode.name}
             {selectedNode.kind === 'module' && selectedNode.pagerank !== undefined && ` · 承重 ${selectedNode.pagerank}`}
             {selectedNode.kind === 'module' && selectedNode.layer !== undefined && ` · 第 ${selectedNode.layer} 层`}
           </div>
@@ -361,7 +366,7 @@ export function DepsPanel(): JSX.Element {
           )}
         </div>
       ) : (
-        <div className="panel-empty">点击节点查看依赖详情；选中省份节点会同步地图。「社区着色」对比实际耦合与目录省份，「分层地层」展示 SCC 缩点后的理论分层。</div>
+        <div className="panel-empty">点击节点查看依赖详情；选择模块节点可同步定位地图。「社区着色」对比实际耦合与目录模块，「分层地层」展示 SCC 缩点后的理论分层。</div>
       )}
     </div>
   );

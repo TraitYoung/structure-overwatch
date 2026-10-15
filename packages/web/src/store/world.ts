@@ -125,6 +125,9 @@ export interface ImpactInfo {
 }
 
 /** 地图渲染专用的易变信号：变更脉冲与边境冲突高亮（不触发 React 渲染） */
+export const mapSignalEvents = new EventTarget();
+
+/** 地图渲染信号：同时通知 SVG 总平面图和 Canvas 剖面。 */
 export const mapSignals = {
   /** fileId -> 最近变更时间戳（ms） */
   changes: new Map<string, number>(),
@@ -136,6 +139,7 @@ export const mapSignals = {
 
   recordChanges(fileIds: string[], now = Date.now()) {
     for (const id of fileIds) this.changes.set(id, now);
+    mapSignalEvents.dispatchEvent(new Event('change'));
     // 清理旧记录，避免无限增长
     if (this.changes.size > 2000) {
       const cutoff = now - 5000;
@@ -146,6 +150,7 @@ export const mapSignals = {
   flashModules(moduleIds: string[], durationMs = 3200) {
     this.highlight.ids = new Set(moduleIds);
     this.highlight.until = Date.now() + durationMs;
+    mapSignalEvents.dispatchEvent(new Event('highlight'));
   },
 
   pulseAlert() {

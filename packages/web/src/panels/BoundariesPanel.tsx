@@ -41,24 +41,24 @@ export function BoundariesPanel(): JSX.Element {
   return (
     <div className="panel boundaries-panel">
       <div className="panel-header">
-        <span className="panel-title">边境界约</span>
+        <span className="panel-title">边界检查 / Boundary</span>
         <span className="panel-count">{violations.length} 项</span>
       </div>
       <div className="boundaries-meta">
         自定义规则 {boundariesInfo.rulesConfigured} 条 · 上帝模块阈值 fan-in {boundariesInfo.godModuleFanIn}
         {boundariesInfo.configFile ? '' : ' · 默认规则'}
       </div>
-      {groups.length === 0 && <div className="panel-empty">边境安宁，无违规记录。</div>}
+      {groups.length === 0 && <div className="panel-empty">暂无边界问题。</div>}
       {groups.map((g) => (
         <div key={g.severity} className="violation-group">
           <div className={`group-label sev-${g.severity}`}>
             {SEVERITY_LABEL[g.severity]} · {g.items.length}
           </div>
           {g.items.map((v) => (
-            <div key={v.id} className="violation-item" onClick={() => onPick(v)}>
+            <button key={v.id} className="violation-item" onClick={() => onPick(v)}>
               <span className={`type-tag type-${v.type}`}>{TYPE_LABEL[v.type]}</span>
               <span className="violation-title" title={v.detail ?? v.title}>{v.title}</span>
-            </div>
+            </button>
           ))}
         </div>
       ))}

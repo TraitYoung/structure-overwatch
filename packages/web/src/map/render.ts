@@ -86,7 +86,7 @@ export function drawMap(input: RenderInput): void {
   const { ctx, layout, nodes, edges, selectedModuleId, view, width, height, time, hoverFileId } = input;
 
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = '#101218';
+  ctx.fillStyle = '#fcfbf8';
   ctx.fillRect(0, 0, width, height);
 
   const s = view.scale;
@@ -104,13 +104,13 @@ export function drawMap(input: RenderInput): void {
       ctx.fillStyle = color.fill;
       ctx.fill();
       if (health < 70) {
-        ctx.fillStyle = `rgba(190, 30, 30, ${((70 - health) / 100) * 1.1})`;
+        ctx.fillStyle = `rgba(162, 100, 81, ${((70 - health) / 100) * 1.1})`;
         ctx.fill();
       } else if (cyclic) {
-        ctx.fillStyle = 'rgba(150, 60, 160, 0.14)';
+        ctx.fillStyle = 'rgba(145, 110, 100, 0.1)';
         ctx.fill();
       }
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.strokeStyle = 'rgba(100, 115, 100, 0.2)';
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -134,13 +134,13 @@ export function drawMap(input: RenderInput): void {
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.quadraticCurveTo(cx, cy, b.x, b.y);
-    ctx.strokeStyle = 'rgba(233, 196, 128, 0.5)';
+    ctx.strokeStyle = 'rgba(100, 125, 115, 0.5)';
     ctx.lineWidth = widthPx;
     ctx.stroke();
     // 商队流动虚线
     ctx.setLineDash([6, 10]);
     ctx.lineDashOffset = -(time / 40) % 1000;
-    ctx.strokeStyle = 'rgba(255, 235, 190, 0.35)';
+    ctx.strokeStyle = 'rgba(95, 125, 135, 0.35)';
     ctx.lineWidth = Math.max(1, widthPx * 0.35);
     ctx.stroke();
     ctx.setLineDash([]);
@@ -160,7 +160,7 @@ export function drawMap(input: RenderInput): void {
         ctx.beginPath();
         ctx.moveTo(c1.x, c1.y);
         ctx.lineTo(c2.x, c2.y);
-        ctx.strokeStyle = neighborFile ? color.border : 'rgba(255, 255, 255, 0.10)';
+        ctx.strokeStyle = neighborFile ? color.border : 'rgba(90, 115, 100, 0.4)';
         ctx.lineWidth = neighborFile ? 2.4 * Math.max(0.6, Math.min(1.5, s)) : 1.2;
         ctx.stroke();
       }
@@ -169,7 +169,7 @@ export function drawMap(input: RenderInput): void {
 
   // ---- 选中省份 ----
   if (selectedModuleId) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.strokeStyle = '#5a7b8a';
     ctx.lineWidth = 2.6;
     traceProvinceBorder(ctx, layout, nodes, selectedModuleId, toScreen, () => ctx.stroke());
   }
@@ -180,7 +180,7 @@ export function drawMap(input: RenderInput): void {
   if (now < highlight.until && highlight.ids.size > 0) {
     const pulse = 0.55 + 0.45 * Math.sin(now / 130);
     for (const moduleId of highlight.ids) {
-      ctx.strokeStyle = `rgba(255, 64, 48, ${0.55 + 0.4 * pulse})`;
+      ctx.strokeStyle = `rgba(162, 100, 81, ${0.55 + 0.4 * pulse})`;
       ctx.lineWidth = 3.4 + 1.6 * pulse;
       traceProvinceBorder(ctx, layout, nodes, moduleId, toScreen, () => ctx.stroke());
     }
@@ -235,15 +235,15 @@ export function drawMap(input: RenderInput): void {
       const fs = Math.max(0.85, Math.min(1.4, s));
       ctx.font = `600 ${13 * fs}px system-ui, sans-serif`;
       ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.strokeStyle = '#fcfbf8';
       ctx.strokeText(p.name, c.x, c.y - 7);
-      ctx.fillStyle = '#f2ead8';
+      ctx.fillStyle = '#34463d';
       ctx.fillText(p.name, c.x, c.y - 7);
       if (metrics) {
         const sub = `${metrics.files} 文件·${metrics.health}`;
         ctx.font = `${10 * fs}px system-ui, sans-serif`;
         ctx.strokeText(sub, c.x, c.y + 9);
-        ctx.fillStyle = metrics.cyclic ? '#ff8f7a' : '#cfc4a8';
+        ctx.fillStyle = metrics.cyclic ? '#92533f' : '#596d57';
         ctx.fillText(sub, c.x, c.y + 9);
       }
     }
@@ -262,8 +262,8 @@ export function drawMap(input: RenderInput): void {
     const boxH = lines.length * 17 + 14;
     const bx = 18;
     const by = 70;
-    ctx.fillStyle = 'rgba(12, 14, 20, 0.92)';
-    ctx.strokeStyle = 'rgba(255, 140, 80, 0.55)';
+    ctx.fillStyle = '#fcfbf8';
+    ctx.strokeStyle = '#ba9d89';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.roundRect(bx, by, boxW, boxH, 6);
@@ -272,7 +272,7 @@ export function drawMap(input: RenderInput): void {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     lines.forEach((l, i) => {
-      ctx.fillStyle = i === 0 ? '#ffd9a8' : i === lines.length - 1 ? '#8b93a5' : '#b9c0cf';
+      ctx.fillStyle = i === 0 ? '#92533f' : i === lines.length - 1 ? '#646e69' : '#596365';
       ctx.font = `${i === 0 ? 600 : 400} 11.5px ui-monospace, monospace`;
       ctx.fillText(l, bx + 12, by + 9 + i * 17);
     });
@@ -293,8 +293,8 @@ export function drawMap(input: RenderInput): void {
       const boxH = lines.length * 17 + 14;
       const bx = width - boxW - 18;
       const by = 70;
-      ctx.fillStyle = 'rgba(12, 14, 20, 0.92)';
-      ctx.strokeStyle = 'rgba(226, 183, 105, 0.5)';
+      ctx.fillStyle = '#fcfbf8';
+      ctx.strokeStyle = '#a6b7a0';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(bx, by, boxW, boxH, 6);
@@ -303,7 +303,7 @@ export function drawMap(input: RenderInput): void {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       lines.forEach((l, i) => {
-        ctx.fillStyle = i === 0 ? '#f5efdd' : i === lines.length - 1 ? '#9be89b' : '#b9c0cf';
+        ctx.fillStyle = i === 0 ? '#34463d' : i === lines.length - 1 ? '#526d55' : '#596365';
         ctx.font = `${i === 0 ? 600 : 400} 11.5px ui-monospace, monospace`;
         ctx.fillText(l, bx + 12, by + 9 + i * 17);
       });

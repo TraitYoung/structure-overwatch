@@ -166,9 +166,34 @@ export interface WorldDiff {
 
 // ---------- WebSocket 协议 ----------
 
+export interface ProjectSnapshot extends WorldSnapshot {
+  /** 每次打开/重新扫描产生新会话，版本号仅在该会话内有效。 */
+  sessionId: string;
+}
+
+export interface LocalProject {
+  name: string;
+  path: string;
+  lastOpened: string;
+}
+
+export interface ProjectList {
+  current: LocalProject | null;
+  projects: LocalProject[];
+  historyWarning?: string;
+}
+
+export interface DirectoryListing {
+  path: string;
+  parent: string | null;
+  directories: Array<{ name: string; path: string }>;
+  roots: string[];
+}
+
 export type ServerMessage =
-  | { type: 'hello'; version: number; status: AnalysisStatus }
-  | { type: 'diff'; diff: WorldDiff }
+  | { type: 'hello'; sessionId: string; version: number; status: AnalysisStatus }
+  | { type: 'snapshot'; snapshot: ProjectSnapshot }
+  | { type: 'diff'; sessionId: string; diff: WorldDiff }
   | { type: 'pong' };
 
 export type ClientMessage = { type: 'ping' };

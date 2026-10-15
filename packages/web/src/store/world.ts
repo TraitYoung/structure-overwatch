@@ -6,7 +6,7 @@ import type {
   GraphNode,
   Violation,
   WorldEvent,
-  WorldSnapshot,
+  ProjectSnapshot,
 } from '@surv/shared';
 
 export type DrawerId = 'deps' | 'boundaries' | null;
@@ -15,6 +15,7 @@ export interface WorldState {
   loaded: boolean;
   connected: boolean;
   version: number;
+  sessionId: string;
   repoName: string;
   repoRoot: string;
   degraded: boolean;
@@ -30,7 +31,7 @@ export interface WorldState {
   drawer: DrawerId;
   isoOpen: boolean;
 
-  applySnapshot: (snap: WorldSnapshot) => void;
+  applySnapshot: (snap: ProjectSnapshot) => void;
   applyDiff: (diff: import('@surv/shared').WorldDiff, resync: () => void) => void;
   setConnected: (v: boolean) => void;
   selectModule: (id: string | null) => void;
@@ -44,6 +45,7 @@ export const useWorld = create<WorldState>()((set, get) => ({
   loaded: false,
   connected: false,
   version: 0,
+  sessionId: '',
   repoName: '',
   repoRoot: '',
   degraded: false,
@@ -59,10 +61,22 @@ export const useWorld = create<WorldState>()((set, get) => ({
   isoOpen: false,
 
   applySnapshot: (snap) => {
+    if (snap.sessionId === get().sessionId && snap.version < get().version) return;
+    const switched = snap.sessionId !== get().sessionId;
+    if (switched) {
+      mapSignals.changes.clear();
+      mapSignals.highlight = { ids: new Set(), until: 0 };
+      mapSignals.impact = null;
+      mapSignals.alertPulseUntil = 0;
+      mapSignalEvents.dispatchEvent(new Event('highlight'));
+      mapSignalEvents.dispatchEvent(new Event('change'));
+    }
     const nodes = new Map(snap.nodes.map((n) => [n.id, n]));
     const edges = new Map(snap.edges.map((e) => [e.id, e]));
     set({
       loaded: true,
+      sessionId: snap.sessionId,
+      ...(switched ? { selectedModuleId: null, isoOpen: false, drawer: null } : {}),
       version: snap.version,
       repoName: snap.repoName,
       repoRoot: snap.repoRoot,

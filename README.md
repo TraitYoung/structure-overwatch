@@ -39,6 +39,22 @@ pnpm test
 
 > 要求 Node ≥ 20、pnpm ≥ 9（`corepack enable` 后可用）。
 
+## 在界面中打开和切换项目
+
+点击顶栏的当前项目，打开「项目图纸索引」：
+
+- 点击最近打开的项目，直接切换并重新扫描。
+- 点击「打开项目文件夹」，粘贴本机绝对路径后选择「打开并分析」。
+- 也可以选择「浏览目录…」，通过磁盘入口、上一级和子文件夹逐层浏览，再点击「打开此文件夹」。浏览的是 Node 服务所在电脑上的目录，无需上传源码。
+
+当前服务同时监控一个项目，所有连接的页面跟随切换。无效或不可读的目录会显示错误，原项目保持可用。切换会停止旧项目扫描和监听，清空旧地图的选择、剖面和变更高亮，再加载新项目的独立会话。版本号只在该会话内有效，旧请求和增量不会混入新图。
+
+最近 20 个项目保存在**服务启动工作目录**下的 `.survallian/projects.json`，重启后仍可选择；目录已加入 Git 忽略规则。持久化失败时会提示，当前会话仍可正常使用。项目不要求有 `.git`，分析范围仍为 TypeScript / JavaScript。
+
+本地 API：`GET /api/projects`（索引）、`POST /api/projects/open`（JSON `{ "path": "绝对路径" }`）、`GET /api/directories?path=...`（目录浏览）、`GET /api/snapshot`（包含 `sessionId` 的当前快照）。WebSocket 在切换时广播完整快照，后续增量带同一个 `sessionId`。API 与 WebSocket 都限制外部网站来源；服务默认仍只监听 `127.0.0.1`。
+
+服务端集成测试在构建 shared/core 后运行：`pnpm --filter @surv/server test`，覆盖目录校验、历史持久化、并发切换、多客户端同步及监听隔离。
+
 ## 演示仓库玩法（fixtures/demo-repo）
 
 打开地图后可以看到预置的"案发现场"：
@@ -95,7 +111,7 @@ packages/
 │   ├── boundaries/  规则引擎 + 极简 glob
 │   ├── store/       版本化世界状态、diff 生成、违规对比事件、环形事件日志
 │   └── watcher/     chokidar 防抖合批
-├── server/   Fastify：GET /api/snapshot、WS /ws、静态托管 web；CLI `survallian watch <repo>`
+├── server/   Fastify：项目会话与目录浏览、GET /api/snapshot、WS /ws、静态托管 web；CLI `survallian watch <repo>`
 └── web/      React + zustand + 原生 Canvas 2D
     ├── map/         六边形省份地图（稳定增量布局：文件格子不因新增而跳动）
     ├── iso/         等距城市下钻视图

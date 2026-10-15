@@ -8,6 +8,7 @@ import { buildWorld } from './model/buildWorld.js';
 import { loadBoundariesConfig, type ResolvedBoundariesConfig } from './boundaries/engine.js';
 import { WorldStore, type EventSeed } from './store/worldStore.js';
 import type { FsEvent } from './watcher/watcher.js';
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', 'out', 'coverage', '.next', '.cache', '.turbo', '.output', '.vite',
@@ -64,6 +65,7 @@ export class AnalysisEngine {
   private config: ResolvedBoundariesConfig;
   private configError: string | null;
   private queue: Promise<void> = Promise.resolve();
+  private disposed = false;
   private prevCycleFiles = new Set<string>();
   private prevModuleIds = new Set<string>();
   private prevExternalIds = new Set<string>();
@@ -89,7 +91,19 @@ export class AnalysisEngine {
   }
 
   /** 全量首扫：遍历 → 解析 → 建图 → 一次性下发完整世界 */
-  async initialScan(): Promise<void> {
+  initialScan(): Promise<void> {
+    const scan = this.queue.then(() => this.scan());
+    this.queue = scan.catch(() => undefined);
+    return scan;
+  }
+
+  async dispose(): Promise<void> {
+    this.disposed = true;
+    await this.queue;
+  }
+
+  private async scan(): Promise<void> {
+    if (this.disposed) return;
     const files = walkSources(this.repoRoot);
     const degraded = files.length > this.config.maxFiles;
     if (degraded) {
@@ -105,6 +119,7 @@ export class AnalysisEngine {
     let done = 0;
     let lastEmit = Date.now();
     for (const rel of files) {
+      if (this.disposed) return;
       const parsed = this.parser.addFile(join(this.repoRoot, rel));
       if (parsed) {
         this.graph.upsertFile(parsed);
@@ -115,7 +130,10 @@ export class AnalysisEngine {
         this.store.setStatus({ state: 'scanning', filesDone: done });
         lastEmit = now;
       }
+      if (done % 16 === 0) await yieldToEventLoop();
     }
+
+    if (this.disposed) return;
 
     this.refreshPartition();
     const world = this.buildWorld();
@@ -150,8 +168,9 @@ export class AnalysisEngine {
 
   /** 文件事件入队（串行处理，返回排队完成后的 Promise） */
   enqueueFileEvents(events: FsEvent[]): Promise<void> {
+    if (this.disposed) return Promise.resolve();
     this.queue = this.queue
-      .then(() => this.handleFileEvents(events))
+      .then(() => { if (!this.disposed) this.handleFileEvents(events); })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         this.store.pushEvent({ kind: 'info', severity: 'medium', message: `处理文件变更失败：${message}` });

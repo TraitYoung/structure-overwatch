@@ -4,6 +4,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AnalysisEngine } from './engine.js';
 import { DEMO_REPO } from './testing.js';
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
+
+it('切换项目时可停止进行中的扫描，停止后忽略文件事件', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'surv-cancel-'));
+  let engine: AnalysisEngine | undefined;
+  try {
+    for (let i = 0; i < 40; i++) writeFileSync(join(dir, `file-${i}.ts`), `export const value = ${i};`);
+    engine = new AnalysisEngine(dir);
+    const scan = engine.initialScan();
+    await yieldToEventLoop();
+    await engine.dispose();
+    await scan;
+    await engine.enqueueFileEvents([{ type: 'change', absPath: join(dir, 'file-0.ts') }]);
+    expect(engine.store.snapshot().nodes).toHaveLength(0);
+    expect(engine.store.snapshot().events.some((e) => e.kind === 'analysis')).toBe(false);
+  } finally {
+    await engine?.dispose();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe('AnalysisEngine（demo 仓库全量扫描）', () => {
   it('检出全部预置违规', async () => {

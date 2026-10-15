@@ -36,6 +36,7 @@ export function App(): JSX.Element {
   const rev = useWorld((st) => st.rev);
   const repoName = useWorld((st) => st.repoName);
   const repoRoot = useWorld((st) => st.repoRoot);
+  const sessionId = useWorld((st) => st.sessionId);
   const modules = [...nodes.values()].filter((n) => n.kind === 'module');
   const files = [...nodes.values()].filter((n) => n.kind === 'file');
   void rev;
@@ -52,7 +53,7 @@ export function App(): JSX.Element {
         </div>
         <div className="topbar-center">
           <ProjectSelect />
-          <span className={`status-chip ${st.cls}`}>
+          <span className={`status-chip ${st.cls}`} title={status.state === 'error' ? status.message : undefined}>
             {connected ? st.label : '未连接'}
           </span>
           {degraded && <span className="status-chip st-degraded">规模超限 · 已降级</span>}
@@ -76,7 +77,7 @@ export function App(): JSX.Element {
         </div>
       </header>
       <div className="workspace">
-        <ModuleIndex />
+        <ModuleIndex key={sessionId} />
         <section className="drawing-workspace" aria-label="架构图纸">
           <div className="drawing-heading"><div><span className="eyebrow">ARCHITECTURE ATLAS / 总体结构</span><h1>Architecture Plan<span>架构总平面图</span></h1><p title={repoRoot}>{repoName || '等待连接项目'}<span className="heading-divider">/</span><span className="drawing-path">{repoRoot || '选择项目，开始探索代码结构'}</span></p></div><div className="drawing-sheet-number"><span>DRAWING NO.</span><strong>A—01</strong><span>总览 · GENERAL PLAN</span></div></div>
           <div className="drawing-summary"><div><span className="summary-label">模块</span><strong>{modules.length.toString().padStart(2, '0')}</strong><small>MODULES</small></div><div><span className="summary-label">文件</span><strong>{files.length.toString().padStart(2, '0')}</strong><small>FILES</small></div><div><span className="summary-label">依赖</span><strong>{edges.size.toString().padStart(2, '0')}</strong><small>RELATIONS</small></div><div><span className="summary-label">边界问题</span><strong className={violations.length ? 'text-warning' : ''}>{violations.length.toString().padStart(2, '0')}</strong><small>OBSERVATIONS</small></div><span className="summary-note">结构，始于清晰的关系。</span></div>
@@ -86,7 +87,7 @@ export function App(): JSX.Element {
             <button aria-pressed={mapView === 'plan'} onClick={() => setMapView('plan')}>总平面图</button>
             <button aria-pressed={mapView === 'graph'} onClick={() => setMapView('graph')}>图情报 / 自由布局</button>
           </div>
-          {mapView === 'plan' ? <PlanMap /> : <WorldMap />}
+          {mapView === 'plan' ? <PlanMap key={sessionId} /> : <WorldMap key={sessionId} />}
         </div>
         {drawer && (
           <aside className="drawer">
@@ -98,7 +99,7 @@ export function App(): JSX.Element {
         </section>
       </div>
       <footer className="app-footer"><span><span className={`footer-dot ${connected ? 'connected' : ''}`} />{connected ? '本地事件流已连接' : '等待连接本地分析服务'}</span><span>文件单元 / 模块组团 / 有向依赖</span><span>STRUCTURE ATLAS <b>·</b> A—01</span></footer>
-      <IsoCity />
+      <IsoCity key={sessionId} />
     </div>
   );
 }

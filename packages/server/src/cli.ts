@@ -63,14 +63,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const { port } = await startServer({
+  const server = await startServer({
     repoRoot,
     port: args.port,
     webDist: fileURLToPath(new URL('../../web/dist', import.meta.url)),
   });
-  printBanner(repoRoot, port, false);
+  printBanner(repoRoot, server.port, false);
 
   const shutdown = async () => {
+    await server.close();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);

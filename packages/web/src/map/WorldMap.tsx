@@ -53,7 +53,7 @@ export function WorldMap(): JSX.Element {
 
   const rev = useWorld((st) => st.rev);
   const nodes = useWorld((st) => st.nodes);
-  const repoName = useWorld((st) => st.repoName);
+  const repoName = useWorld((st) => st.repoRoot);
 
   // 增量布局：已分配格子保持不动，新文件追加空位；随后套用用户手动摆位
   const layout = useMemo(() => {
